@@ -5,9 +5,18 @@ const router = express.Router(),
     Booking = require('../models/booking'),
     validator = require('../helpers/validator'),
     creator = require('../helpers/bookingcreator'),
-globalLogins = {};
+globalLogins = {},
+globalUsers = {'admin': 'password123'};
 
 const { v4: uuidv4 } = require('uuid');
+
+const getBearerToken = function(req){
+  const header = req.headers.authorization;
+
+  if(header && header.startsWith('Bearer ')){
+    return header.slice('Bearer '.length);
+  }
+};
 
 if(process.env.SEED === 'true'){
   let count = 1;
@@ -122,10 +131,10 @@ router.get('/booking', function(req, res, next) {
  * @apiName GetBooking
  * @apiGroup Booking
  * @apiVersion 1.0.0
- * @apiDescription Returns a specific booking based upon the booking id provided
- * 
+ * @apiDescription Returns a specific booking based upon the booking id provided. This endpoint is deliberately slow (~3 second delay) to give load tests a realistic bottleneck to target.
+ *
  * @apiParam (Url Parameter) {String} id The id of the booking you would like to retrieve
- * 
+ *
  * @apiHeader {string} Accept=application/json Sets what format the response body is returned in. Can be application/json or application/xml
  * 
  * @apiExample Example 1 (Get booking):
@@ -174,20 +183,24 @@ router.get('/booking', function(req, res, next) {
  * 
  * firstname=Jim&lastname=Brown&totalprice=111&depositpaid=true&bookingdates%5Bcheckin%5D=2018-01-01&bookingdates%5Bcheckout%5D=2019-01-01
  */
-router.get('/booking/:id',function(req, res, next){
-  Booking.get(req.params.id, function(err, record){
-    if(record){
-      const booking = parse.booking(req.headers.accept, record);
+const SLOW_BOOKING_DELAY_MS = 3000;
 
-      if(!booking){
-        res.sendStatus(418);
+router.get('/booking/:id',function(req, res, next){
+  setTimeout(function(){
+    Booking.get(req.params.id, function(err, record){
+      if(record){
+        const booking = parse.booking(req.headers.accept, record);
+
+        if(!booking){
+          res.sendStatus(418);
+        } else {
+          res.send(booking);
+        }
       } else {
-        res.send(booking);
+        res.sendStatus(404)
       }
-    } else {
-      res.sendStatus(404)
-    }
-  })
+    })
+  }, SLOW_BOOKING_DELAY_MS);
 });
 
 /**
@@ -340,15 +353,15 @@ router.post('/booking', function(req, res, next) {
  * 
  * @apiHeader {string} Content-Type=application/json                    Sets the format of payload you are sending. Can be application/json or text/xml
  * @apiHeader {string} Accept=application/json                          Sets what format the response body is returned in. Can be application/json or application/xml
- * @apiHeader {string} [Cookie=token=&lt;token_value&gt;]                     Sets an authorization token to access the PUT endpoint, can be used as an alternative to the Authorization
- * @apiHeader {string} [Authorization=Basic YWRtaW46cGFzc3dvcmQxMjM=]   Basic authorization header to access the PUT endpoint, can be used as an alternative to the Cookie header
- * 
+ * @apiHeader {string} [Authorization=Bearer &lt;token_value&gt;]             Bearer token to access the PUT endpoint, can be used as an alternative to Basic auth
+ * @apiHeader {string} [Authorization=Basic YWRtaW46cGFzc3dvcmQxMjM=]   Basic authorization header to access the PUT endpoint, can be used as an alternative to the Bearer token
+ *
  * @apiExample JSON example usage:
  * curl -X PUT \
   https://restful-booker.herokuapp.com/booking/1 \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
-  -H 'Cookie: token=abc123' \
+  -H 'Authorization: Bearer abc123' \
   -d '{
     "firstname" : "James",
     "lastname" : "Brown",
@@ -431,7 +444,7 @@ router.post('/booking', function(req, res, next) {
  * firstname=Jim&lastname=Brown&totalprice=111&depositpaid=true&bookingdates%5Bcheckin%5D=2018-01-01&bookingdates%5Bcheckout%5D=2019-01-01
  */
 router.put('/booking/:id', function(req, res, next) {
-  if(globalLogins[req.cookies.token] || req.headers.authorization == 'Basic YWRtaW46cGFzc3dvcmQxMjM='){
+  if(globalLogins[getBearerToken(req)] || req.headers.authorization == 'Basic YWRtaW46cGFzc3dvcmQxMjM='){
     updatedBooking = req.body;
     if(req.headers['content-type'] === 'text/xml') updatedBooking = updatedBooking.booking;
 
@@ -480,15 +493,15 @@ router.put('/booking/:id', function(req, res, next) {
  * 
  * @apiHeader {string} Content-Type=application/json                    Sets the format of payload you are sending. Can be application/json or text/xml
  * @apiHeader {string} Accept=application/json                          Sets what format the response body is returned in. Can be application/json or application/xml
- * @apiHeader {string} [Cookie=token=&lt;token_value&gt;]                     Sets an authorization token to access the PUT endpoint, can be used as an alternative to the Authorization
- * @apiHeader {string} [Authorization=Basic YWRtaW46cGFzc3dvcmQxMjM=]   Basic authorization header to access the PUT endpoint, can be used as an alternative to the Cookie header
- * 
+ * @apiHeader {string} [Authorization=Bearer &lt;token_value&gt;]             Bearer token to access the PATCH endpoint, can be used as an alternative to Basic auth
+ * @apiHeader {string} [Authorization=Basic YWRtaW46cGFzc3dvcmQxMjM=]   Basic authorization header to access the PATCH endpoint, can be used as an alternative to the Bearer token
+ *
  * @apiExample JSON example usage:
  * curl -X PUT \
   https://restful-booker.herokuapp.com/booking/1 \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
-  -H 'Cookie: token=abc123' \
+  -H 'Authorization: Bearer abc123' \
   -d '{
     "firstname" : "James",
     "lastname" : "Brown"
@@ -557,7 +570,7 @@ router.put('/booking/:id', function(req, res, next) {
  * firstname=Jim&lastname=Brown&totalprice=111&depositpaid=true&bookingdates%5Bcheckin%5D=2018-01-01&bookingdates%5Bcheckout%5D=2019-01-01
  */
 router.patch('/booking/:id', function(req, res) {
-  if(globalLogins[req.cookies.token] || req.headers.authorization == 'Basic YWRtaW46cGFzc3dvcmQxMjM='){
+  if(globalLogins[getBearerToken(req)] || req.headers.authorization == 'Basic YWRtaW46cGFzc3dvcmQxMjM='){
     updatedBooking = req.body;
 
     if(req.headers['content-type'] === 'text/xml') updatedBooking = updatedBooking.booking;
@@ -590,15 +603,15 @@ router.patch('/booking/:id', function(req, res) {
  * @apiDescription Deletes a booking from the API. Requires an authorization token to be set in the header or a Basic auth header.
  *
  * @apiParam (Url Parameter) {Number} id  ID for the booking you want to update
- * 
- * @apiHeader {string} [Cookie=token=&lt;token_value&gt;]                     Sets an authorization token to access the DELETE endpoint, can be used as an alternative to the Authorization
- * @apiHeader {string} [Authorization=Basic YWRtaW46cGFzc3dvcmQxMjM=]   Basic authorization header to access the DELETE endpoint, can be used as an alternative to the Cookie header
- * 
- * @apiExample Example 1 (Cookie):
+ *
+ * @apiHeader {string} [Authorization=Bearer &lt;token_value&gt;]             Bearer token to access the DELETE endpoint, can be used as an alternative to Basic auth
+ * @apiHeader {string} [Authorization=Basic YWRtaW46cGFzc3dvcmQxMjM=]   Basic authorization header to access the DELETE endpoint, can be used as an alternative to the Bearer token
+ *
+ * @apiExample Example 1 (Bearer token):
  * curl -X DELETE \
   https://restful-booker.herokuapp.com/booking/1 \
   -H 'Content-Type: application/json' \
-  -H 'Cookie: token=abc123'
+  -H 'Authorization: Bearer abc123'
  *
  * @apiExample Example 2 (Basic auth):
  * curl -X DELETE \
@@ -612,7 +625,7 @@ router.patch('/booking/:id', function(req, res) {
  *     HTTP/1.1 201 Created
 */
 router.delete('/booking/:id', function(req, res, next) {
-  if(globalLogins[req.cookies.token] || req.headers.authorization == 'Basic YWRtaW46cGFzc3dvcmQxMjM='){
+  if(globalLogins[getBearerToken(req)] || req.headers.authorization == 'Basic YWRtaW46cGFzc3dvcmQxMjM='){
     Booking.get(req.params.id, function(err, record){
       if(record){
         Booking.delete(req.params.id, function(err){
@@ -628,11 +641,78 @@ router.delete('/booking/:id', function(req, res, next) {
 });
 
 /**
+ * @api {post} register RegisterUser
+ * @apiName RegisterUser
+ * @apiGroup Auth
+ * @apiVersion 1.0.0
+ * @apiDescription Registers a new user. Once registered, the username and password can be used with POST /auth to obtain a token.
+ *
+ * @apiParam (Request body) {String} username  Username for the new user
+ * @apiParam (Request body) {String} password  Password for the new user. Must be at least 6 characters long
+ *
+ * @apiHeader {string} Content-Type=application/json Sets the format of payload you are sending
+ *
+ * @apiExample Example 1:
+ * curl -X POST \
+  https://restful-booker.herokuapp.com/register \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "username" : "jim",
+    "password" : "letmein"
+}'
+ *
+ * @apiSuccess {Boolean} success  Whether the user was created
+ *
+ * @apiSuccessExample {json} Response:
+ * HTTP/1.1 200 OK
+ *
+ * {
+    "success": true
+}
+ *
+ * @apiError (Error 400) BadRequest Returned when username/password are missing, the password is shorter than 6 characters, or the username is already taken
+ *
+ * @apiErrorExample {json} Missing fields:
+ * HTTP/1.1 400 Bad Request
+ *
+ * {
+    "reason": "Username and password are required"
+}
+ * @apiErrorExample {json} Password too short:
+ * HTTP/1.1 400 Bad Request
+ *
+ * {
+    "reason": "Password must be at least 6 characters long"
+}
+ * @apiErrorExample {json} Username taken:
+ * HTTP/1.1 400 Bad Request
+ *
+ * {
+    "reason": "Username already exists"
+}
+ */
+router.post('/register', function(req, res, next){
+  const username = req.body.username;
+  const password = req.body.password;
+
+  if(!username || !password){
+    res.status(400).send({'reason': 'Username and password are required'});
+  } else if(password.length < 6){
+    res.status(400).send({'reason': 'Password must be at least 6 characters long'});
+  } else if(globalUsers[username]){
+    res.status(400).send({'reason': 'Username already exists'});
+  } else {
+    globalUsers[username] = password;
+    res.send({'success': true});
+  }
+});
+
+/**
  * @api {post} auth CreateToken
  * @apiName CreateToken
  * @apiGroup Auth
  * @apiVersion 1.0.0
- * @apiDescription Creates a new auth token to use for access to the PUT and DELETE /booking
+ * @apiDescription Creates a new auth token to use for access to the PUT, PATCH and DELETE /booking endpoints. Pass the returned token in the Authorization header as a Bearer token, e.g. 'Authorization: Bearer &lt;token&gt;'. Credentials must first exist, either the default admin/password123 or a user created via POST /register.
  * 
  * @apiParam (Request body) {String}  username=admin        Username for authentication
  * @apiParam (Request body) {String}  password=password123  Password for authentication
@@ -657,7 +737,7 @@ router.delete('/booking/:id', function(req, res, next) {
 }
  */
 router.post('/auth', function(req, res, next){
-  if(req.body.username === "admin" && req.body.password === "password123"){
+  if(globalUsers[req.body.username] === req.body.password){
     const token = crypto.randomBytes(Math.ceil(15 / 2))
         .toString('hex')
         .slice(0, 15);

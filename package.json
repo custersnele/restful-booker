@@ -4,12 +4,11 @@
   "private": true,
   "scripts": {
     "start": "cross-env SEED=true node ./bin/www",
-    "test": "mocha -R spec tests/spec.js",
+    "test": "mocha -R spec --timeout 5000 tests/spec.js",
     "build_docs": "apidoc -i ./routes/ -o public/apidoc/"
   },
   "dependencies": {
     "body-parser": "2.2.2",
-    "cookie-parser": "1.4.7",
     "cross-env": "10.1.0",
     "date-and-time": "4.3.1",
     "debug": "4.4.3",

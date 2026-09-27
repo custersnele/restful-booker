@@ -346,6 +346,75 @@ describe('restful-booker - POST /booking', function () {
   })
 });
 
+describe('restful-booker POST /register', function(){
+
+  it('responds with a 200 and success when registering a new user', function testRegisterSuccess(done){
+    request(server)
+      .post('/register')
+      .send({'username': 'newuser1', 'password': 'letmein'})
+      .expect(200)
+      .expect(function(res){
+        res.body.should.have.property('success').and.to.equal(true);
+      })
+      .end(done)
+  })
+
+  it('allows the newly registered user to authenticate via POST /auth', function testRegisterThenAuth(done){
+    request(server)
+      .post('/register')
+      .send({'username': 'newuser2', 'password': 'letmein'})
+      .then(function(){
+        request(server)
+          .post('/auth')
+          .send({'username': 'newuser2', 'password': 'letmein'})
+          .expect(200)
+          .expect(function(res){
+            res.body.should.have.property('token').and.to.match(/[a-zA-Z0-9]{15,}/);
+          })
+          .end(done)
+      })
+  })
+
+  it('responds with a 400 when username or password is missing', function testRegisterMissingFields(done){
+    request(server)
+      .post('/register')
+      .send({'username': 'newuser3'})
+      .expect(400)
+      .expect(function(res){
+        res.body.should.have.property('reason').and.to.equal('Username and password are required');
+      })
+      .end(done)
+  })
+
+  it('responds with a 400 when the password is shorter than 6 characters', function testRegisterShortPassword(done){
+    request(server)
+      .post('/register')
+      .send({'username': 'newuser4', 'password': '12345'})
+      .expect(400)
+      .expect(function(res){
+        res.body.should.have.property('reason').and.to.equal('Password must be at least 6 characters long');
+      })
+      .end(done)
+  })
+
+  it('responds with a 400 when the username is already taken', function testRegisterDuplicateUsername(done){
+    request(server)
+      .post('/register')
+      .send({'username': 'newuser5', 'password': 'letmein'})
+      .then(function(){
+        request(server)
+          .post('/register')
+          .send({'username': 'newuser5', 'password': 'letmein2'})
+          .expect(400)
+          .expect(function(res){
+            res.body.should.have.property('reason').and.to.equal('Username already exists');
+          })
+          .end(done)
+      })
+  })
+
+});
+
 describe('restful-booker POST /auth', function(){
 
   it('responds with a 200 and a token to use when POSTing a valid credential', function testAuthReturnsToken(done){
@@ -389,7 +458,7 @@ describe('restful-booker - PUT /booking', function () {
           request(server)
             .put('/booking/1')
             .set('Accept', 'application/json')
-            .set('Cookie', 'token=' + res.body.token)
+            .set('Authorization', 'Bearer ' + res.body.token)
             .send(payload2)
             .expect(403, done)
         })
@@ -408,7 +477,7 @@ describe('restful-booker - PUT /booking', function () {
         request(server)
           .put('/booking/1')
           .set('Accept', 'application/json')
-          .set('Cookie', 'token=' + res.body.token)
+          .set('Authorization', 'Bearer ' + res.body.token)
           .send(payload2)
           .expect(200)
           .expect(payload2, done);
@@ -438,7 +507,7 @@ describe('restful-booker - PUT /booking', function () {
         request(server)
           .put('/booking/100000')
           .set('Accept', 'application/json')
-          .set('Cookie', 'token=' + res.body.token)
+          .set('Authorization', 'Bearer ' + res.body.token)
           .send(payload2)
           .expect(405, done);
       })
@@ -458,7 +527,7 @@ describe('restful-booker - PUT /booking', function () {
       .then(function(res){
         request(server)
           .put('/booking/1')
-          .set('Cookie', 'token=' + res.body.token)
+          .set('Authorization', 'Bearer ' + res.body.token)
           .set('Content-type', 'text/xml')
           .set('Accept', 'application/json')
           .send(xmlPayload)
@@ -481,7 +550,7 @@ describe('restful-booker - PUT /booking', function () {
       .then(function(res){
         request(server)
           .put('/booking/1')
-          .set('Cookie', 'token=' + res.body.token)
+          .set('Authorization', 'Bearer ' + res.body.token)
           .set('Accept', 'application/xml')
           .send(payload2)
           .expect(200)
@@ -506,7 +575,7 @@ describe('restful-booker DELETE /booking', function(){
         .then(function(res){
           request(server)
             .delete('/booking/1')
-            .set('Cookie', 'token=' + res.body.token)
+            .set('Authorization', 'Bearer ' + res.body.token)
             .expect(403, done)
         })
   })
@@ -523,7 +592,7 @@ describe('restful-booker DELETE /booking', function(){
       .then(function(res){
         request(server)
           .delete('/booking/1')
-          .set('Cookie', 'token=' + res.body.token)
+          .set('Authorization', 'Bearer ' + res.body.token)
           .expect(201, done)
       });
   });
@@ -547,7 +616,7 @@ describe('restful-booker DELETE /booking', function(){
       .then(function(res){
         request(server)
           .delete('/booking/10000000')
-          .set('Cookie', 'token=' + res.body.token)
+          .set('Authorization', 'Bearer ' + res.body.token)
           .expect(405, done)
       })
   })
