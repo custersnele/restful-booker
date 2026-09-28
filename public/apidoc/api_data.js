@@ -6,7 +6,7 @@ define({ "api": [
     "name": "CreateToken",
     "group": "Auth",
     "version": "1.0.0",
-    "description": "<p>Creates a new auth token to use for access to the PUT and DELETE /booking</p>",
+    "description": "<p>Creates a new auth token to use for access to the PUT, PATCH and DELETE /booking endpoints. Pass the returned token in the Authorization header as a Bearer token, e.g. 'Authorization: Bearer &lt;token&gt;'. Credentials must first exist, either the default admin/password123 or a user created via POST /register.</p>",
     "parameter": {
       "fields": {
         "Request body": [
@@ -66,6 +66,107 @@ define({ "api": [
         {
           "title": "Response:",
           "content": "HTTP/1.1 200 OK\n\n{\n    \"token\": \"abc123\"\n}",
+          "type": "json"
+        }
+      ]
+    },
+    "filename": "routes/index.js",
+    "groupTitle": "Auth"
+  },
+  {
+    "type": "post",
+    "url": "register",
+    "title": "RegisterUser",
+    "name": "RegisterUser",
+    "group": "Auth",
+    "version": "1.0.0",
+    "description": "<p>Registers a new user. Once registered, the username and password can be used with POST /auth to obtain a token.</p>",
+    "parameter": {
+      "fields": {
+        "Request body": [
+          {
+            "group": "Request body",
+            "type": "String",
+            "optional": false,
+            "field": "username",
+            "description": "<p>Username for the new user</p>"
+          },
+          {
+            "group": "Request body",
+            "type": "String",
+            "optional": false,
+            "field": "password",
+            "description": "<p>Password for the new user. Must be at least 6 characters long</p>"
+          }
+        ]
+      }
+    },
+    "header": {
+      "fields": {
+        "Header": [
+          {
+            "group": "Header",
+            "type": "string",
+            "optional": false,
+            "field": "Content-Type",
+            "defaultValue": "application/json",
+            "description": "<p>Sets the format of payload you are sending</p>"
+          }
+        ]
+      }
+    },
+    "examples": [
+      {
+        "title": "Example 1:",
+        "content": "curl -X POST \\\n  https://restful-booker.herokuapp.com/register \\\n  -H 'Content-Type: application/json' \\\n  -d '{\n    \"username\" : \"jim\",\n    \"password\" : \"letmein\"\n}'",
+        "type": "json"
+      }
+    ],
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "Boolean",
+            "optional": false,
+            "field": "success",
+            "description": "<p>Whether the user was created</p>"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Response:",
+          "content": "HTTP/1.1 200 OK\n\n{\n    \"success\": true\n}",
+          "type": "json"
+        }
+      ]
+    },
+    "error": {
+      "fields": {
+        "Error 400": [
+          {
+            "group": "Error 400",
+            "optional": false,
+            "field": "BadRequest",
+            "description": "<p>Returned when username/password are missing, the password is shorter than 6 characters, or the username is already taken</p>"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Missing fields:",
+          "content": "HTTP/1.1 400 Bad Request\n\n{\n    \"reason\": \"Username and password are required\"\n}",
+          "type": "json"
+        },
+        {
+          "title": "Password too short:",
+          "content": "HTTP/1.1 400 Bad Request\n\n{\n    \"reason\": \"Password must be at least 6 characters long\"\n}",
+          "type": "json"
+        },
+        {
+          "title": "Username taken:",
+          "content": "HTTP/1.1 400 Bad Request\n\n{\n    \"reason\": \"Username already exists\"\n}",
           "type": "json"
         }
       ]
@@ -299,25 +400,17 @@ define({ "api": [
             "group": "Header",
             "type": "string",
             "optional": true,
-            "field": "Cookie",
-            "defaultValue": "token=&lt;token_value&gt;",
-            "description": "<p>Sets an authorization token to access the DELETE endpoint, can be used as an alternative to the Authorization</p>"
-          },
-          {
-            "group": "Header",
-            "type": "string",
-            "optional": true,
             "field": "Authorization",
-            "defaultValue": "Basic",
-            "description": "<p>YWRtaW46cGFzc3dvcmQxMjM=]   Basic authorization header to access the DELETE endpoint, can be used as an alternative to the Cookie header</p>"
+            "defaultValue": "Bearer",
+            "description": "<p>&lt;token_value&gt;]             Bearer token to access the DELETE endpoint, can be used as an alternative to Basic auth</p>"
           }
         ]
       }
     },
     "examples": [
       {
-        "title": "Example 1 (Cookie):",
-        "content": "curl -X DELETE \\\n  https://restful-booker.herokuapp.com/booking/1 \\\n  -H 'Content-Type: application/json' \\\n  -H 'Cookie: token=abc123'",
+        "title": "Example 1 (Bearer token):",
+        "content": "curl -X DELETE \\\n  https://restful-booker.herokuapp.com/booking/1 \\\n  -H 'Content-Type: application/json' \\\n  -H 'Authorization: Bearer abc123'",
         "type": "json"
       },
       {
@@ -356,7 +449,7 @@ define({ "api": [
     "name": "GetBooking",
     "group": "Booking",
     "version": "1.0.0",
-    "description": "<p>Returns a specific booking based upon the booking id provided</p>",
+    "description": "<p>Returns a specific booking based upon the booking id provided. This endpoint is deliberately slow (~3 second delay) to give load tests a realistic bottleneck to target.</p>",
     "parameter": {
       "fields": {
         "Url Parameter": [
@@ -657,17 +750,9 @@ define({ "api": [
             "group": "Header",
             "type": "string",
             "optional": true,
-            "field": "Cookie",
-            "defaultValue": "token=&lt;token_value&gt;",
-            "description": "<p>Sets an authorization token to access the PUT endpoint, can be used as an alternative to the Authorization</p>"
-          },
-          {
-            "group": "Header",
-            "type": "string",
-            "optional": true,
             "field": "Authorization",
-            "defaultValue": "Basic",
-            "description": "<p>YWRtaW46cGFzc3dvcmQxMjM=]   Basic authorization header to access the PUT endpoint, can be used as an alternative to the Cookie header</p>"
+            "defaultValue": "Bearer",
+            "description": "<p>&lt;token_value&gt;]             Bearer token to access the PATCH endpoint, can be used as an alternative to Basic auth</p>"
           }
         ]
       }
@@ -675,7 +760,7 @@ define({ "api": [
     "examples": [
       {
         "title": "JSON example usage:",
-        "content": "curl -X PUT \\\n  https://restful-booker.herokuapp.com/booking/1 \\\n  -H 'Content-Type: application/json' \\\n  -H 'Accept: application/json' \\\n  -H 'Cookie: token=abc123' \\\n  -d '{\n    \"firstname\" : \"James\",\n    \"lastname\" : \"Brown\"\n}'",
+        "content": "curl -X PUT \\\n  https://restful-booker.herokuapp.com/booking/1 \\\n  -H 'Content-Type: application/json' \\\n  -H 'Accept: application/json' \\\n  -H 'Authorization: Bearer abc123' \\\n  -d '{\n    \"firstname\" : \"James\",\n    \"lastname\" : \"Brown\"\n}'",
         "type": "json"
       },
       {
@@ -866,17 +951,9 @@ define({ "api": [
             "group": "Header",
             "type": "string",
             "optional": true,
-            "field": "Cookie",
-            "defaultValue": "token=&lt;token_value&gt;",
-            "description": "<p>Sets an authorization token to access the PUT endpoint, can be used as an alternative to the Authorization</p>"
-          },
-          {
-            "group": "Header",
-            "type": "string",
-            "optional": true,
             "field": "Authorization",
-            "defaultValue": "Basic",
-            "description": "<p>YWRtaW46cGFzc3dvcmQxMjM=]   Basic authorization header to access the PUT endpoint, can be used as an alternative to the Cookie header</p>"
+            "defaultValue": "Bearer",
+            "description": "<p>&lt;token_value&gt;]             Bearer token to access the PUT endpoint, can be used as an alternative to Basic auth</p>"
           }
         ]
       }
@@ -884,7 +961,7 @@ define({ "api": [
     "examples": [
       {
         "title": "JSON example usage:",
-        "content": "curl -X PUT \\\n  https://restful-booker.herokuapp.com/booking/1 \\\n  -H 'Content-Type: application/json' \\\n  -H 'Accept: application/json' \\\n  -H 'Cookie: token=abc123' \\\n  -d '{\n    \"firstname\" : \"James\",\n    \"lastname\" : \"Brown\",\n    \"totalprice\" : 111,\n    \"depositpaid\" : true,\n    \"bookingdates\" : {\n        \"checkin\" : \"2018-01-01\",\n        \"checkout\" : \"2019-01-01\"\n    },\n    \"additionalneeds\" : \"Breakfast\"\n}'",
+        "content": "curl -X PUT \\\n  https://restful-booker.herokuapp.com/booking/1 \\\n  -H 'Content-Type: application/json' \\\n  -H 'Accept: application/json' \\\n  -H 'Authorization: Bearer abc123' \\\n  -d '{\n    \"firstname\" : \"James\",\n    \"lastname\" : \"Brown\",\n    \"totalprice\" : 111,\n    \"depositpaid\" : true,\n    \"bookingdates\" : {\n        \"checkin\" : \"2018-01-01\",\n        \"checkout\" : \"2019-01-01\"\n    },\n    \"additionalneeds\" : \"Breakfast\"\n}'",
         "type": "json"
       },
       {
