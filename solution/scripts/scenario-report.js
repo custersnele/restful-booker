@@ -1,4 +1,4 @@
-// Bouwt een overzichtspagina met alle positieve en negatieve scenario's
+1// Bouwt een overzichtspagina met alle positieve en negatieve scenario's
 // uit het Newman JSON-rapport.
 // Gebruik: node scenario-report.js <newman-report.json> <output.html>
 const fs = require('fs');

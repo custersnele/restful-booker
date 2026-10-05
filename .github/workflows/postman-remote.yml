@@ -1,0 +1,58 @@
+name: Postman API tests (remote)
+
+# Draait de Postman collection tegen een reeds gedeployde omgeving.
+# Er wordt niets gestart of gedeployed in deze workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Base URL van de te testen omgeving
+        default: https://restful-broker-tst.duckdns.org
+        required: true
+
+env:
+  BASE_URL: ${{ inputs.base_url || 'https://restful-broker-tst.duckdns.org' }}
+
+jobs:
+  newman:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: Install newman
+        run: npm install -g newman newman-reporter-htmlextra
+
+      - name: Check that the environment is up
+        run: curl --fail --retry 5 --retry-delay 5 --retry-all-errors -sS "$BASE_URL/ping"
+
+      - name: Run Postman collection
+        id: newman
+        continue-on-error: true
+        run: |
+          mkdir -p reports
+          newman run "solution/Restful-Booker - Example Solution.postman_collection.json" \
+            --environment solution/restful-booker.postman_environment.json \
+            --env-var "baseUrl=$BASE_URL" \
+            --reporters cli,htmlextra,json \
+            --reporter-htmlextra-export reports/report.html \
+            --reporter-htmlextra-title "Restful-Booker API tests ($BASE_URL)" \
+            --reporter-json-export reports/newman.json
+
+      - name: Build positive/negative scenario page
+        if: always()
+        run: node solution/scripts/scenario-report.js reports/newman.json reports/index.html
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-report-remote
+          path: reports/
+
+      - name: Fail if tests failed
+        if: steps.newman.outcome == 'failure'
+        run: exit 1
