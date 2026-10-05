@@ -1,0 +1,76 @@
+name: Postman API tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  newman:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm install -g newman newman-reporter-htmlextra
+
+      - name: Start restful-booker
+        run: |
+          npm start > server.log 2>&1 &
+          npx --yes wait-on --timeout 30000 http-get://localhost:3001/ping
+
+      - name: Run Postman collection
+        id: newman
+        continue-on-error: true
+        run: |
+          mkdir -p reports
+          newman run "solution/Restful-Booker - Example Solution.postman_collection.json" \
+            --environment solution/restful-booker.postman_environment.json \
+            --reporters cli,htmlextra,json \
+            --reporter-htmlextra-export reports/report.html \
+            --reporter-htmlextra-title "Restful-Booker API tests" \
+            --reporter-json-export reports/newman.json
+
+      - name: Build positive/negative scenario page
+        if: always()
+        run: |
+          node solution/scripts/scenario-report.js reports/newman.json reports/index.html
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-report
+          path: reports/
+
+      - name: Upload GitHub Pages artifact
+        if: always() && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: reports/
+
+      # Report on the real result after the page is published, so a failing
+      # test (e.g. a bug found in the API) is visible but never hides the report.
+      - name: Fail if tests failed
+        if: steps.newman.outcome == 'failure'
+        run: exit 1
+
+  pages:
+    needs: newman
+    if: always() && github.ref == 'refs/heads/main' && needs.newman.result != 'skipped'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
